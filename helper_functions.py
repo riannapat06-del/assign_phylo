@@ -3,7 +3,6 @@ import numpy as np
 from copy import deepcopy
 from matplotlib.axes import Axes
 
-
 class Node:
     def __init__(
         self,
@@ -48,6 +47,117 @@ class Node:
         self.confidence = confidence
 
 
+def create_q_matrix(distances: list, total_dist: list) -> list:
+    """Build the Q matrix used to choose which pair of nodes to join.
+    Q[i][j] = (n - 2) * D[i][j] - r_i - r_j, where r_i is the sum of row i.
+
+    Parameters
+    ----------
+    distances: list
+        distance matrix (list of lists).
+    total_dist: list
+        Row sums of the distance matrix, one per node.
+
+    Returns
+    -------
+    list
+        Q matrix, with infinity on the diagonal so a node
+        is never joined to itself.
+
+    """
+    n = len(distances)
+    q_matrix = []
+    for i in range(n):
+        row = []
+        for j in range(n):
+            if i == j:
+                row.append(float("inf"))
+            else:
+                q_val = ((n - 2) * distances[i][j] - total_dist[i] - total_dist[j])
+                row.append(q_val)
+        q_matrix.append(row)
+    return q_matrix
+
+def find_closest_pair(q_matrix: list) -> tuple:
+    """Find the pair of nodes with the smallest Q value.
+
+    Parameters
+    ----------
+    q_matrix: list
+
+    Returns
+    -------
+    tuple
+        Indices (i, j) of the pair to join
+
+    """
+    n = len(q_matrix)
+    smallest_q = None
+    best_i = None
+    best_j = None
+
+    for i in range(n):
+        for j in range(i + 1, n):
+            if smallest_q is None or q_matrix[i][j] < smallest_q:
+                smallest_q = q_matrix[i][j]
+                best_i = i
+                best_j = j
+
+    return best_i, best_j
+
+def update_distances(distances: list, i: int, j: int) -> tuple:
+    """Replace nodes i and j in the distance matrix with their new parent.
+
+    The parent is added at the END of the matrix. Distance to each
+    remaining node k is (D[i][k] + D[j][k] - D[i][j]) / 2.
+
+    Parameters
+    ----------
+    distances: list
+        Current square distance matrix.
+    i: int
+        Index of the first node being joined.
+    j: int
+        Index of the second node being joined.
+
+    Returns
+    -------
+    tuple
+        (new_distances, remaining_nodes), where new_distances is the updated
+        matrix and remaining_nodes is the list of old indices that were kept.
+
+    """
+    n = len(distances)
+
+    # Find all nodes except the two being joined
+    remaining_nodes = []
+    for p in range(n):
+        if p != i and p != j:
+            remaining_nodes.append(p)
+
+    # Keep distances between remaining nodes to update matrix
+    new_distances = []
+    for p in remaining_nodes:
+        row = []
+        # Copy the distances between remaining nodes
+        for q in remaining_nodes:
+            row.append(distances[p][q])
+
+        # Calculate distance from p to the new parent
+        new_dist = (distances[i][p] + distances[j][p] - distances[i][j]) / 2
+        row.append(new_dist)
+        new_distances.append(row)
+
+    # Add the new parent's row
+    parent_row = []
+    for p in remaining_nodes:
+        new_dist = (distances[i][p] + distances[j][p] - distances[i][j]) / 2
+        parent_row.append(new_dist)
+    parent_row.append(0)
+    new_distances.append(parent_row)
+
+    return new_distances, remaining_nodes
+
 def neighbor_joining(distances: np.ndarray, labels: list) -> Node:
     """The Neighbor-Joining algorithm.
 
@@ -70,11 +180,49 @@ def neighbor_joining(distances: np.ndarray, labels: list) -> Node:
         A root node of the neighbor joining tree.
 
     """
+    # Create leaf node for each virus
+    nodes = []
+    for virus in labels:
+        leaf = Node(virus, None, 0, None, 0, None)
+        nodes.append(leaf)
+
+    # Convert distance matrix into lists
+    distances = [list(row) for row in distances]
+    unique_node_count = 1
     
-    self.tree = Node()
+    # Keep joining pairs of nodes until only final two remain
+    while len(nodes) > 2:
+        # Calculate total distance for each virus
+        total_dist = []
+        for dist in distances:
+            total_dist.append(sum(dist))
 
-    raise NotImplementedError()
+        # Calculate Q matrix
+        n = len(nodes)
+        q_matrix = create_q_matrix(distances, total_dist)
+        # Find the pair with the smallest value (closest)
+        i, j = find_closest_pair(q_matrix)
 
+        # Calculate branch lengths, note two branch lengths add up to D(i,j)
+        dist_i = (distances[i][j] / 2 + (total_dist[i] - total_dist[j]) / (2 * (n - 2)))
+        dist_j = distances[i][j] - dist_i
+
+        # Create the parent node joining i and j
+        parent = Node(f"node_{unique_node_count}", nodes[i], dist_i, nodes[j], dist_j)
+        unique_node_count += 1
+
+        # Remove i and j from the matrix and add the new parent at the end
+        distances, remaining_nodes = update_distances(distances, i, j)
+
+        # Update active nodes where the original joined nodes are now children of parent
+        nodes = [nodes[p] for p in remaining_nodes]
+        nodes.append(parent)
+
+    # Once only two nodes remain, connect them under a final root
+    # Split the remaining distance equally between the two branches
+    final_dist = distances[0][1] / 2
+    root = Node("root", nodes[0], final_dist, nodes[1], final_dist)
+    return root
 
 def plot_nj_tree(tree: Node, ax: Axes = None, **kwargs) -> None:
     """A function for plotting neighbor joining phylogeny dendrogram.
