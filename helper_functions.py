@@ -1,6 +1,7 @@
 """Helper functions for HW3"""
 import numpy as np
 from copy import deepcopy
+import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 
 class Node:
@@ -248,7 +249,99 @@ def plot_nj_tree(tree: Node, ax: Axes = None, **kwargs) -> None:
 
     """
 
-    return ax
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(10, 6))
+
+    leaves = []
+    stack = [tree]
+
+    while stack:
+        node = stack.pop()
+        # Find all leave nodes
+        if node.left is None and node.right is None:
+            leaves.append(node)
+        else:
+            if node.right is not None:
+                stack.append(node.right)
+            if node.left is not None:
+                stack.append(node.left)
+
+    # Assign y-coord to leaves
+    pos = {}
+    i = 0
+
+    for leaf in leaves:
+        pos[leaf] = (None, i)
+        i = i + 1
+
+    # Assign x-coord based on node info
+    root = tree
+    root_x_coord = 0
+    visited = False
+
+    stack = [(root, root_x_coord, visited)]
+    while stack:
+        node, x, visited = stack.pop()
+        if node in leaves:
+            y_coord = pos[node][1]
+            pos[node] = (x, y_coord)
+        elif not visited:
+            visited = True
+            stack.append((node, x, visited))
+            # Add right child
+            if node.right:
+                x_right = x + node.right_distance
+                visited = False
+                stack.append((node.right, x_right, visited))
+            # Add left child
+            if node.left:
+                x_left = x + node.left_distance
+                visited = False
+                stack.append((node.left, x_left, visited))
+        else:
+            # Parent node being proocessed for second time
+            left = pos[node.left][1]
+            right = pos[node.right][1]
+            avg = (left + right) / 2
+            pos[node] = (x, avg) 
+
+    # Draw tree using Matplotlib
+    stack = [tree]
+    while stack:
+        node = stack.pop()
+
+        if node.left is not None and node.right is not None:
+            # Get coordinates
+            x, y = pos[node]
+            left_x, left_y = pos[node.left]
+            right_x, right_y = pos[node.right]
+
+            # Draw vertical line between children
+            ax.plot([x, x], [left_y, right_y], color="black")
+
+            # Draw horizontal line to left child
+            ax.plot([x, left_x], [left_y, left_y], color="black")
+
+            # Draw horizontal line to right child
+            ax.plot([x, right_x], [right_y, right_y], color="black")
+
+            # Process children
+            stack.append(node.right)
+            stack.append(node.left)
+
+    # label leaves
+    for leaf in leaves:
+        x, y = pos[leaf]
+        ax.text(x, y, leaf.name, va="center")
+
+    # Format plot
+    ax.set_xlabel("Sequence distance")
+    ax.set_yticks([])
+    ax.margins(x=0.15)
+
+    # Remove top and right borders
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
 
 
 def _find_a_parent_to_node(tree: Node, node: Node) -> tuple:
