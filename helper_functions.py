@@ -434,7 +434,31 @@ def sort_children_by_leaves(tree: Node) -> None:
         The root node of the tree.
 
     """
-    raise NotImplementedError()
+    stack = [tree]
+    leaves = {}
+    ordered_node = []
+    while stack:
+        node = stack.pop()
+        if node.left:
+            stack.append(node.left)
+        if node.right:
+            stack.append(node.right)
+
+        ordered_node.append(node)
+
+
+    ordered_node.reverse()
+    for node in ordered_node:
+        if not node.left and not node.right:
+            leaves[node] = 1
+        else:
+            leaves[node] = leaves[node.left] + leaves[node.right]
+
+            if leaves[node.left] > leaves[node.right]:
+                node.left, node.right = node.right, node.left
+
+                node.left_distance, node.right_distance = (node.right_distance, node.left_distance)
+
 
 
 def plot_nj_tree_radial(tree: Node, ax: Axes = None, **kwargs) -> None:
