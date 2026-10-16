@@ -332,7 +332,8 @@ def plot_nj_tree(tree: Node, ax: Axes = None, **kwargs) -> None:
     # label leaves
     for leaf in leaves:
         x, y = pos[leaf]
-        ax.text(x, y, leaf.name, va="center")
+        label = leaf.name.split("|")[0]
+        ax.text(x, y, label, va="center")
 
     # Format plot
     ax.set_xlabel("Sequence distance")
@@ -342,7 +343,6 @@ def plot_nj_tree(tree: Node, ax: Axes = None, **kwargs) -> None:
     # Remove top and right borders
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
-
 
 def _find_a_parent_to_node(tree: Node, node: Node) -> tuple:
     """Utility function for reroot_tree"""
@@ -434,11 +434,14 @@ def sort_children_by_leaves(tree: Node) -> None:
         The root node of the tree.
 
     """
+    # Traverse the tree and store all nodes
     stack = [tree]
     leaves = {}
     ordered_node = []
     while stack:
         node = stack.pop()
+
+        # Add children to the stack
         if node.left:
             stack.append(node.left)
         if node.right:
@@ -446,17 +449,22 @@ def sort_children_by_leaves(tree: Node) -> None:
 
         ordered_node.append(node)
 
-
+    # Reverse order so children are processed before parents
     ordered_node.reverse()
+
     for node in ordered_node:
+        # Leaf nodes contain exactly one leaf
         if not node.left and not node.right:
             leaves[node] = 1
         else:
+            # Count the total leaves in both subtrees
             leaves[node] = leaves[node.left] + leaves[node.right]
 
+            # Put the subtree with fewer leaves on the left
             if leaves[node.left] > leaves[node.right]:
                 node.left, node.right = node.right, node.left
 
+                # Swap branch lengths to preserve distances
                 node.left_distance, node.right_distance = (node.right_distance, node.left_distance)
 
 
